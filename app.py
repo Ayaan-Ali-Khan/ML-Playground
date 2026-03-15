@@ -1,22 +1,20 @@
 import streamlit as st
 
 # Configure the page setting (This might already be in .streamlit/config.toml, but acts as a fallback/explicit setting)
-st.set_page_config(page_title="ML Playground", layout="wide", page_icon="🧠")
+st.set_page_config(page_title="ML Playground", layout="wide", page_icon="./assets/flask.png")
 
 def main():
-    # --- UI Wireframe ---
-
     # 1. Sidebar Controls
     st.sidebar.title("⚙️ Controls")
     st.sidebar.markdown("---")
     
     # Dataset Selection Placeholder
-    st.sidebar.subheader("1. Dataset")
+    st.sidebar.subheader("Dataset")
     dataset_name = st.sidebar.selectbox("Select Dataset", ["Moons", "Circles", "Blobs", "Classification"])
     
     # Model Selection Placeholder
-    st.sidebar.subheader("2. Model")
-    model_name = st.sidebar.selectbox("Select Model", ["Logistic Regression", "Decision Tree", "Random Forest"])
+    st.sidebar.subheader("Model")
+    model_name = st.sidebar.selectbox("Select Model", ["Logistic Regression", "SVM Classifier", "Decision Tree", "Random Forest", "Neural Network", "K Nearest Neighbours"])
     
     # Hyperparameters Placeholder
     st.sidebar.subheader("3. Hyperparameters")
