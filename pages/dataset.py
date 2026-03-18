@@ -141,7 +141,7 @@ if X is not None and y is not None:
     st.session_state["y_train"] = y_train
     st.session_state["y_test"] = y_test
     st.session_state["feature_names"] = feature_names
-    st.session_state["class_names"] = class_names
+    st.session_state["class_names"] = list(class_names)
     st.session_state["dataset_ready"] = True
 
     col1, col2, col3, col4 = st.columns(4)
@@ -161,7 +161,7 @@ if X is not None and y is not None:
         class_names=class_names,
         title=f"Dataset Preview",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     with st.expander("🔍 View raw data (first 50 rows)"):
         df_preview = pd.DataFrame(X, columns=feature_names)
@@ -169,7 +169,7 @@ if X is not None and y is not None:
         df_preview["class"] = [
             class_names[i] if i < len(class_names) else str(i) for i in y
         ]
-        st.dataframe(df_preview.head(50), use_container_width=True)
+        st.dataframe(df_preview.head(50), width="stretch")
 
 else:
     st.info("Configure the controls in the sidebar and your dataset will appear here.")

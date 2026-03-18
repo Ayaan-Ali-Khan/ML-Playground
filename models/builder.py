@@ -9,16 +9,12 @@ Usage:
     clf = build_model("svm", {"kernel": "rbf", "C": 2.0, "gamma": "scale", "degree": 3})
     clf.fit(X_train, y_train)
 """
-import numpy as np
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier, VotingClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.ensemble import VotingClassifier
 from models.registry import MODEL_REGISTRY
 
 # Models that benefit from or require scaling
@@ -52,7 +48,7 @@ def build_model(model_key:str, user_params:dict):
     if model_key == "naive_bayes":
         user_params = dict(user_params)
         # var_smoothing is stored as log10
-        user_params["var_smooting"] = 10 ** user_params["var_smoothing"]
+        user_params["var_smoothing"] = 10 ** user_params["var_smoothing"]
     # LDA
     if model_key == "LDA":
         user_params = dict(user_params)
@@ -72,18 +68,18 @@ def build_model(model_key:str, user_params:dict):
     if model_key == "logistic_regression":
         user_params = dict(user_params)
         # penalty 'none' string → None
-        penalty = user_params.get("penalty", "l2")
+        l1_ratio = user_params.get("l1_ratio", 0.0)
         solver = user_params.get("solver", "lbfgs")
-        if penalty == "none":
+        if l1_ratio == "none":
             user_params["penalty"] = None
         # Fix incompatible solver/penalty combos silently
-        if penalty == "l1" and solver not in ("liblinear", "saga"):
+        if l1_ratio == 1.0 and solver not in ("liblinear", "saga"):
             user_params["solver"] = "saga"
-        elif penalty == "elasticnet" and solver != "saga":
-            user_params["penalty"] = "saga"
+        elif l1_ratio < 1.0 and l1_ratio > 0.0 and solver != "saga":
+            user_params["solver"] = "saga"
             user_params["l1_ratio"] = 0.5   # required for elasticnet
     # Voting Classifier
-    if model_key == "voting":
+    if model_key == "voting_classifier":
         return _build_voting_classifier(user_params)
     
     # Filter user_params to only keys accepted by this model's constructor
@@ -93,6 +89,12 @@ def build_model(model_key:str, user_params:dict):
     filtered_params = {k: v for k, v in user_params.items() if k in valid_keys}
     all_params = {**filtered_params, **fixed_params}
     estimator = sklearn_cls(**all_params)
+
+    if model_key in _NEEDS_SCALING:
+        return Pipeline([
+            ("scaler", StandardScaler()),
+            ("clf", estimator),
+        ])
     return estimator
 
 def _build_voting_classifier(user_params:dict) -> Pipeline:

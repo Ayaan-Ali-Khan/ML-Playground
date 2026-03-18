@@ -52,7 +52,7 @@ class EvalResult:
  
     # ROC
     roc_auc: float | None = None
-    fpr: np.ndarray | None = None      # binary: 1-D; multiclass: dict
+    fpr: np.ndarray | None = None
     tpr: np.ndarray | None = None
  
     # Error message if fitting failed

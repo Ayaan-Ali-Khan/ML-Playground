@@ -21,7 +21,7 @@ def main():
     st.sidebar.slider("Sample Slider (e.g. C)", 0.01, 10.0, 1.0)
     
     st.sidebar.markdown("---")
-    st.sidebar.button("Train Model", use_container_width=True, type="primary")
+    st.sidebar.button("Train Model", width="stretch", type="primary")
 
     # 2. Main Header & Description
     st.title("🧠 Classical ML Playground")

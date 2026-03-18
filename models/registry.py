@@ -52,12 +52,14 @@ MODEL_REGISTRY = {
                 "step": 0.01,
                 "help": "Inverse of regularization strength. Smaller C -> stronger regularization."
             },
-            "penalty":{
-                "type": "selectbox",
-                "label": "Penalty",
-                "default": "l2",
-                "options": ["l2", "l1", "elasticnet", None],
-                "help": "Regularization type. L1 produces sparse weights; ElasticNet mixes both."
+            "l1_ratio":{
+                "type": "slider_float",
+                "label": "L1 Ratio",
+                "default": "0.0",
+                "min": 0.0,
+                "max": 1.0,
+                "step": 0.001,
+                "help": "Setting l1_ratio=1 gives a pure L1-penalty, setting l1_ratio=0 a pure L2-penalty. Any value between 0 and 1 gives an Elastic-Net penalty of the form l1_ratio * L1 + (1 - l1_ratio) * L2."
             },
             "solver":{
                 "type": "selectbox",
@@ -138,7 +140,7 @@ MODEL_REGISTRY = {
         "supports_feature_importance": False,
         "supports_coef": False,
         "params": {
-            "n_neighbours":{
+            "n_neighbors":{
                 "type": "slider_int",
                 "label": "K (Neighbours)",
                 "default": 5,
@@ -158,7 +160,7 @@ MODEL_REGISTRY = {
                 "type": "selectbox",
                 "label": "Distance Metric",
                 "default": "euclidean",
-                "min": ["euclidean", "manhattan", "minkowski", "chebyshev"],
+                "options": ["euclidean", "manhattan", "minkowski", "chebyshev"],
                 "help": "Distance function used to find nearest neighbours."
             }
         },
@@ -240,7 +242,7 @@ MODEL_REGISTRY = {
                 "type": "selectbox",
                 "label": "Max Features per split",
                 "default": "sqrt",
-                "options": ["sqrt", "log2", "None"],
+                "options": ["sqrt", "log2", "none"],
                 "help": "'sqrt': √n_features (default, good for classification). 'log2': log₂(n_features)."
             },
             "bootstrap":{
@@ -435,4 +437,21 @@ MODEL_REGISTRY = {
         },
         "fixed_params": {}
     }
+}
+
+MODEL_GROUPS = {
+    "CORE": [
+        "logistic_regression",
+        "svm",
+        "knn",
+        "decision_tree",
+        "random_forest",
+        "naive_bayes"
+    ],
+    "bonus":[
+        "gradient_boosting",
+        "adaboost",
+        "voting_classifier",
+        "LDA"
+    ]
 }
