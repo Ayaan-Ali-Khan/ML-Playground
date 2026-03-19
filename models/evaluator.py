@@ -24,6 +24,7 @@ from sklearn.metrics import (
     roc_curve
 )
 from sklearn.preprocessing import label_binarize
+import streamlit as st
 
 
 @dataclass
@@ -91,8 +92,11 @@ def train_and_evaluate(model, X_train:np.ndarray, X_test:np.ndarray, y_train:np.
     try:
         result.y_train_proba = model.predict_proba(X_train)
         result.y_test_proba  = model.predict_proba(X_test)
-    except AttributeError:
-        pass
+    except (AttributeError, NotImplementedError) as e:
+        pass  # model doesn't support predict_proba
+    except Exception as e:
+        st.warning(f"predict_proba failed: {e}")  # surface the real error
+
     #---Metrics---#
     zero_div = 0  # avoid warnings on edge cases
  
