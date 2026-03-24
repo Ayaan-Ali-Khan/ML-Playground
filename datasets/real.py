@@ -30,7 +30,7 @@ REAL_DATASETS = {
     },
 }
 
-def get_real_dataset(dataset_name:str, feature_indices:tuple[int, int]) -> tuple[np.ndarray, np.ndarray, list[str], list[str]]:
+def get_real_dataset(dataset_name:str, feature_indices:tuple[int, int]):
     """
     Load a real sklearn dataset, selecting 2 features for 2D visualization.
  
@@ -62,10 +62,11 @@ def get_real_dataset(dataset_name:str, feature_indices:tuple[int, int]) -> tuple
     # Pick 2 features for visualization
     if feature_indices is not None:
         i, j = feature_indices
-        X = X[:, [i, j]]
+        X_vis = X[:, [i, j]]
         feature_names = [feature_names[i], feature_names[j]]
-
-    return X, y, feature_names, class_names
+        return X, X_vis, y, feature_names, class_names
+    else:
+        return X, y, feature_names, class_names
 
 def get_feature_names(dataset_name:str) -> list[str]:
     """

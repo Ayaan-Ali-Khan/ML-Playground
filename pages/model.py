@@ -324,7 +324,7 @@ if result.y_test_proba is not None:
         template="plotly_white",
         legend=dict(x=0.01, y=0.01, xanchor="left", yanchor="bottom"),
     )
-    st.plotly_chart(fig_pr, use_container_width=True)
+    st.plotly_chart(fig_pr, width="stretch")
  
 else:
     st.info("Precision-Recall curve requires `predict_proba` — not available for this model.")

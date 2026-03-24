@@ -125,7 +125,8 @@ MODEL_REGISTRY = {
                 "step": 1,
                 "help": "Degree for polynomial kernel only. Ignored for other kernels."
             }
-        }
+        },
+        "fixed_params": {"probability": True}
     },
     "knn": {
         "label": "K-Nearest Neighbors",

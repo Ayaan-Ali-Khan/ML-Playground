@@ -120,16 +120,17 @@ with st.sidebar:
 X = y = feature_names = class_names = None
 
 if source == "Synthetic":
-    X, y = get_synthetic_data(dataset_type=dataset_key, n_samples=n_samples,noise=noise, random_seed=random_seed)
-    feature_names = ["Feature 0", "Feature 1"]
+    X, y = get_synthetic_data(dataset_type=dataset_key, n_samples=n_samples, noise=noise, random_seed=random_seed)
+    all_features_names = ["Feature 0", "Feature 1"]
     n_classes = SYNTHETIC_DATASETS[dataset_key]["n_classes"]
     class_names = [f"Class {i}" for i in range(n_classes)]
 
 elif source == "Real (sklearn)":
-    X, y, feature_names, class_names = get_real_dataset(
+    X, X_vis, y, feature_names, class_names = get_real_dataset(
         dataset_name=dataset_key,
         feature_indices=feature_indices if use_2d else None
     )
+    all_features_names = get_feature_names(dataset_key)
 
 #------Data splitting------#
 if X is not None and y is not None:
@@ -137,10 +138,12 @@ if X is not None and y is not None:
 
     # Store in session state for other pages (model training etc.)
     st.session_state["X_train"] = X_train
+    if source == "Real (sklearn)":
+        st.session_state["X_vis"] = X_vis
     st.session_state["X_test"] = X_test
     st.session_state["y_train"] = y_train
     st.session_state["y_test"] = y_test
-    st.session_state["feature_names"] = feature_names
+    st.session_state["feature_names"] = all_features_names
     st.session_state["class_names"] = list(class_names)
     st.session_state["dataset_ready"] = True
 
@@ -151,20 +154,20 @@ if X is not None and y is not None:
     col4.metric("Test Samples", X_test.shape[0])
     st.divider()
 
-    #------Preview plot------
-    preview_feature_names = feature_names[:2] if len(feature_names) >= 2 else feature_names
+    #------Preview plot------#
+    preview_feature_names = all_features_names[:2] if len(all_features_names) >= 2 else feature_names
  
     fig = plot_dataset(
-        X=X[:, :2],   # always use first 2 features for scatter
+        X=X_vis[:, :2] if source=="Real (sklearn)" and X_vis is not None else X[:, :2], # always use first 2 features for scatter,
         y=y,
         feature_names=preview_feature_names,
         class_names=class_names,
-        title=f"Dataset Preview",
+        title=f"Dataset Preview"
     )
     st.plotly_chart(fig, width="stretch")
-
+    # all_features = get_feature_names(dataset_key)
     with st.expander("🔍 View raw data (first 50 rows)"):
-        df_preview = pd.DataFrame(X, columns=feature_names)
+        df_preview = pd.DataFrame(X, columns=all_features_names)
         df_preview["target"] = y
         df_preview["class"] = [
             class_names[i] if i < len(class_names) else str(i) for i in y
