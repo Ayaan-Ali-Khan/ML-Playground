@@ -11,11 +11,11 @@ from datasets.real import get_real_dataset, get_feature_names, REAL_DATASETS
 from utils.plot_utils import plot_dataset
 
 #------PAGE CONFIG------#
-st.set_page_config(
-    page_title="Dataset • ML Playground",
-    page_icon="./assets/flask.png",
-    layout="wide"
-)
+# st.set_page_config(
+#     page_title="Dataset • ML Playground",
+#     page_icon="./assets/flask.png",
+#     layout="wide"
+# )
 
 st.title("📊 Dataset Module")
 st.caption("Select, configure and preview your dataset before training.")
@@ -140,6 +140,8 @@ if X is not None and y is not None:
     st.session_state["X_train"] = X_train
     if source == "Real (sklearn)":
         st.session_state["X_vis"] = X_vis
+        st.session_state["viz_feat_idx_0"] = feature_indices[0]
+        st.session_state["viz_feat_idx_1"] = feature_indices[1]
     st.session_state["X_test"] = X_test
     st.session_state["y_train"] = y_train
     st.session_state["y_test"] = y_test

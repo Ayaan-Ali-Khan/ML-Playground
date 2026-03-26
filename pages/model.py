@@ -3,24 +3,20 @@ Phase 3 + 4 + 5 — Model Training Page
 Sidebar: model selector + dynamic hyperparameter widgets
 Main:    metrics, confusion matrix, ROC curve
 """
-
 import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.subplots as  make_subplots
 import plotly.figure_factory as ff
 import plotly.express as px
-from models.registry import MODEL_REGISTRY, MODEL_GROUPS
+from models.registry import MODEL_REGISTRY
 from models.builder import build_model, get_default_params
 from models.evaluator import train_and_evaluate, EvalResult
+from utils.boundary_plot import build_boundary_figure
+from sklearn.svm import SVC
+from sklearn.pipeline import Pipeline
 
-st.set_page_config(
-    page_title="Train Model • ML Playground",
-    page_icon="./assets/flask.png",
-    layout="wide"
-)
-
-st.title("Model Training")
+st.title("⚙ Model Training")
 st.caption("Select a model, tune its hyperparameters, and evaluate performance.")
 
 if not st.session_state.get("dataset_ready"):
@@ -42,11 +38,23 @@ with st.sidebar:
     def model_format(key):
         label = MODEL_REGISTRY[key]["label"]
         return label
+    
+    def on_model_change():
+        # Wipe trained model so boundary section shows the "train first" message
+        st.session_state.pop("trained_model", None)
+        st.session_state.pop("training_done", None)
+        st.session_state.pop("eval_result", None)
+        st.session_state.pop("train_metrics", None)
+        st.session_state.pop("test_metrics", None)
+        st.session_state.pop("confusion_matrix", None)
+        st.session_state.pop("roc_data", None)
+        st.session_state.pop("pr_data", None)
 
     model_key = st.selectbox(
         "Model",
         options=all_model_keys,
         format_func=model_format,
+        on_change=on_model_change,
         help="Select a classification algorithm to train."
     )
 
@@ -144,6 +152,7 @@ if train_clicked or st.session_state.get("last_fingerprint") != params_fingerpri
             result:EvalResult = train_and_evaluate(clf, X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test, class_names=class_names)
         # Store trained model for visualization page
         st.session_state["trained_model"] = clf
+        st.session_state["training_done"] = True
         st.session_state["eval_result"] = result
         st.session_state["model_key"] = model_key
     elif "eval_result" not in st.session_state:
@@ -162,21 +171,24 @@ st.subheader("📊 Evaluation Metrics")
 
 col_train, col_test = st.columns(2)
 
-with col_train:
-    st.markdown("**Train Set**")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Accuracy", f"{result.train_accuracy:.3f}")
-    m2.metric("F1 Score", f"{result.train_f1:.3f}")
-    m3.metric("Precision", f"{result.train_precision:.3f}")
-    m4.metric("Recall", f"{result.train_recall:.3f}")
+if result is None:
+    st.info("Train a model to see evaluation results.", icon="📊")
+else:    
+    with col_train:
+        st.markdown("**Train Set**")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Accuracy", f"{result.train_accuracy:.3f}")
+        m2.metric("F1 Score", f"{result.train_f1:.3f}")
+        m3.metric("Precision", f"{result.train_precision:.3f}")
+        m4.metric("Recall", f"{result.train_recall:.3f}")
 
-with col_test:
-    st.markdown("**Test Set**")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Accuracy", f"{result.test_accuracy:.3f}", delta=f"{result.test_accuracy - result.train_accuracy:+.3f}")
-    m2.metric("F1 Score", f"{result.test_f1:.3f}", delta=f"{result.test_f1 - result.train_f1:+.3f}")
-    m3.metric("Precision", f"{result.test_precision:.3f}", delta=f"{result.test_precision - result.train_precision:+.3f}")
-    m4.metric("Recall", f"{result.test_recall:.3f}", delta=f"{result.test_recall - result.train_recall:+.3f}")
+    with col_test:
+        st.markdown("**Test Set**")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Accuracy", f"{result.test_accuracy:.3f}", delta=f"{result.test_accuracy - result.train_accuracy:+.3f}")
+        m2.metric("F1 Score", f"{result.test_f1:.3f}", delta=f"{result.test_f1 - result.train_f1:+.3f}")
+        m3.metric("Precision", f"{result.test_precision:.3f}", delta=f"{result.test_precision - result.train_precision:+.3f}")
+        m4.metric("Recall", f"{result.test_recall:.3f}", delta=f"{result.test_recall - result.train_recall:+.3f}")
 
 st.caption(f"⏱️ Training time: **{result.train_time_ms:.1f} ms**")
 st.divider()
@@ -210,7 +222,7 @@ with col_roc:
     st.subheader("ROC Curve")
     if result.roc_auc is not None and result.fpr is not None:
         fig_roc = go.Figure()
- 
+
         # Diagonal baseline
         fig_roc.add_trace(
             go.Scatter(
@@ -220,9 +232,9 @@ with col_roc:
             name="Random (AUC = 0.50)",
             showlegend=True,
         ))
- 
+
         colors = px.colors.qualitative.Set2
- 
+
         if isinstance(result.fpr, dict):
             # Multiclass: one curve per class
             for i, cls in enumerate(result.fpr.keys()):
@@ -246,7 +258,7 @@ with col_roc:
                 fill="tozeroy",
                 fillcolor="rgba(102,194,165,0.15)",
             ))
- 
+
         fig_roc.update_layout(
             xaxis_title="False Positive Rate",
             yaxis_title="True Positive Rate",
@@ -401,3 +413,98 @@ elif entry.get("supports_coef") and hasattr(actual_clf, "coef_"):
  
 if not shown_insight:
     st.info("No feature importance or coefficient visualization available for this model.")
+
+#------Decision Boundary------#
+X_train      = st.session_state.get("X_train")
+X_test       = st.session_state.get("X_test")
+y_train      = st.session_state.get("y_train")
+y_test       = st.session_state.get("y_test")
+feature_names = st.session_state.get("feature_names", ["Feature 0", "Feature 1"])
+class_names   = st.session_state.get("class_names", None)
+trained_model = st.session_state.get("trained_model", None)
+feat_x = st.session_state.get("viz_feat_idx_0", 0)
+feat_y = st.session_state.get("viz_feat_idx_1", 1)
+n_features = X_train.shape[1]
+# Clamp to valid range — guards against stale indices from a previous dataset
+feat_x = min(feat_x, n_features - 1)
+feat_y = min(feat_y, n_features - 1)
+
+# Edge case: if both clamped to same index, force feat_y to next one
+if feat_x == feat_y:
+    feat_y = min(feat_x + 1, n_features - 1)
+    feat_x = max(0, feat_y - 1)  # ensure they're different
+
+X_train_2d = X_train[:, [feat_x, feat_y]]
+X_test_2d  = X_test[:, [feat_x, feat_y]]
+viz_feature_names = [feature_names[feat_x], feature_names[feat_y]]
+
+st.divider()
+st.subheader("🗺️ Decision Boundary")
+
+# Check if current trained model is an SVM
+def _is_svm(model):
+    if isinstance(model, Pipeline):
+        return any(isinstance(step, SVC) for _, step in model.steps)
+    return isinstance(model, SVC)
+
+if trained_model is None:
+    st.info("Train a model above to see the decision boundary.")
+
+elif X_train is not None:
+    has_proba = hasattr(trained_model, "predict_proba") and n_classes==2
+    use_proba = False
+    show_support_vectors = False
+
+    col_toggles = st.columns(2)
+    with col_toggles[0]:
+        if has_proba:
+            use_proba = st.toggle(
+                "Probability shading",
+                value=False,
+                help="Overlays soft probability gradient (binary tasks only)"
+            )
+    with col_toggles[1]:
+        if _is_svm(trained_model):
+            show_support_vectors = st.toggle(
+                "Show support vectors",
+                value=False,
+                help="Highlights support vectors as open circle markers"
+            )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        fig_train = build_boundary_figure(
+            trained_model, X_train_2d, y_train,
+            split_label="Train",
+            feature_names=viz_feature_names,
+            class_names=class_names,
+            use_proba=use_proba,
+            show_support_vectors=show_support_vectors,
+            X_full=X_train,
+            feat_idx_0=feat_x,
+            feat_idx_1=feat_y
+        )
+        st.plotly_chart(fig_train, width="stretch")
+
+    with col2:
+        fig_test = build_boundary_figure(
+            trained_model, X_test_2d, y_test,
+            split_label="Test",
+            feature_names=viz_feature_names,
+            class_names=class_names,
+            use_proba=use_proba,
+            show_support_vectors=show_support_vectors,
+            X_full=X_test,
+            feat_idx_0=feat_x,
+            feat_idx_1=feat_y,
+        )
+        st.plotly_chart(fig_test, width="stretch")
+
+    if X_train.shape[1] > 2:
+        st.caption(
+            f"⚠️ Model trained on **{X_train.shape[1]} features**. This plot shows a 2D slice "
+            f"through **{viz_feature_names[0]}** vs **{viz_feature_names[1]}** — all other features "
+            f"are fixed at their **median**. Points may fall in the 'wrong' region because the "
+            f"true decision boundary lives in {X_train.shape[1]}D space. "
+            f"For an accurate boundary, use a synthetic dataset or select 2 features on a 2-feature dataset."
+        )
