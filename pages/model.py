@@ -15,6 +15,7 @@ from models.evaluator import train_and_evaluate, EvalResult
 from utils.boundary_plot import build_boundary_figure
 from sklearn.svm import SVC
 from sklearn.pipeline import Pipeline
+from utils.insights import compute_learning_curve, compute_validation_curve
 
 st.title("⚙ Model Training")
 st.caption("Select a model, tune its hyperparameters, and evaluate performance.")
@@ -345,74 +346,238 @@ st.divider()
 
 #------Feature Importance------#
 st.subheader("🔍 Model Insights")
- 
-# Extract the actual estimator from Pipeline if wrapped
-actual_clf = clf
-if hasattr(clf, "named_steps"):
-    actual_clf = clf.named_steps.get("clf", clf)
- 
-shown_insight = False
- 
-# Feature importance (tree-based models)
-if entry.get("supports_feature_importance") and hasattr(actual_clf, "feature_importances_"):
-    importances = actual_clf.feature_importances_
-    feat_labels = feature_names if len(feature_names) == len(importances) else [f"F{i}" for i in range(len(importances))]
+
+tab_fi, tab_lc, tab_vc, tab_tips = st.tabs([
+    "📊 Feature Importance / Coefficients",
+    "📈 Learning Curve",
+    "🎛️ Validation Curve",
+    "💡 Tips & Pitfalls"
+])
+
+with tab_fi:
+    # Extract the actual estimator from Pipeline if wrapped
+    actual_clf = clf
+    if hasattr(clf, "named_steps"):
+        actual_clf = clf.named_steps.get("clf", clf)
     
-    sorted_idx = np.argsort(importances)[::-1]
-    fig_fi = go.Figure(go.Bar(
-        x=[feat_labels[i] for i in sorted_idx],
-        y=importances[sorted_idx],
-        marker_color="steelblue",
-    ))
-    fig_fi.update_layout(
-        title="Feature Importances",
-        xaxis_title="Feature",
-        yaxis_title="Importance",
-        height=300,
-        template="plotly_white",
-        margin=dict(l=20, r=20, t=40, b=60),
-    )
-    st.plotly_chart(fig_fi, width="stretch")
-    shown_insight = True
- 
-# Coefficients (LR, LDA)
-elif entry.get("supports_coef") and hasattr(actual_clf, "coef_"):
-    coef = actual_clf.coef_
-    feat_labels = feature_names if len(feature_names) == coef.shape[1] else [f"F{i}" for i in range(coef.shape[1])]
- 
-    if coef.shape[0] == 1:
-        # Binary
-        fig_coef = go.Figure(go.Bar(
-            x=feat_labels,
-            y=coef[0],
-            marker_color=["steelblue" if v > 0 else "tomato" for v in coef[0]],
+    shown_insight = False
+    
+    # Feature importance (tree-based models)
+    if entry.get("supports_feature_importance") and hasattr(actual_clf, "feature_importances_"):
+        importances = actual_clf.feature_importances_
+        feat_labels = feature_names if len(feature_names) == len(importances) else [f"F{i}" for i in range(len(importances))]
+
+        sorted_idx = np.argsort(importances)[::-1]
+        fig_fi = go.Figure(go.Bar(
+            x=[feat_labels[i] for i in sorted_idx],
+            y=importances[sorted_idx],
+            marker_color="steelblue",
         ))
-    else:
-        # Multi-class: grouped bars
-        import plotly.express as px
-        colors = px.colors.qualitative.Set2
-        fig_coef = go.Figure()
-        for i, row in enumerate(coef):
-            label = class_names[i] if i < len(class_names) else f"Class {i}"
-            fig_coef.add_trace(go.Bar(
-                x=feat_labels, y=row, name=label,
-                marker_color=colors[i % len(colors)],
+        fig_fi.update_layout(
+            title="Feature Importances",
+            xaxis_title="Feature",
+            yaxis_title="Importance",
+            height=300,
+            template="plotly_white",
+            margin=dict(l=20, r=20, t=40, b=60),
+        )
+        st.plotly_chart(fig_fi, width="stretch")
+        shown_insight = True
+    
+    # Coefficients (LR, LDA)
+    elif entry.get("supports_coef") and hasattr(actual_clf, "coef_"):
+        coef = actual_clf.coef_
+        feat_labels = feature_names if len(feature_names) == coef.shape[1] else [f"F{i}" for i in range(coef.shape[1])]
+    
+        if coef.shape[0] == 1:
+            # Binary
+            fig_coef = go.Figure(go.Bar(
+                x=feat_labels,
+                y=coef[0],
+                marker_color=["steelblue" if v > 0 else "tomato" for v in coef[0]],
             ))
-        fig_coef.update_layout(barmode="group")
- 
-    fig_coef.update_layout(
-        title="Model Coefficients",
-        xaxis_title="Feature",
-        yaxis_title="Coefficient value",
-        height=300,
-        template="plotly_white",
-        margin=dict(l=20, r=20, t=40, b=60),
-    )
-    st.plotly_chart(fig_coef, width="stretch")
-    shown_insight = True
- 
-if not shown_insight:
-    st.info("No feature importance or coefficient visualization available for this model.")
+        else:
+            # Multi-class: grouped bars
+            import plotly.express as px
+            colors = px.colors.qualitative.Set2
+            fig_coef = go.Figure()
+            for i, row in enumerate(coef):
+                label = class_names[i] if i < len(class_names) else f"Class {i}"
+                fig_coef.add_trace(go.Bar(
+                    x=feat_labels, y=row, name=label,
+                    marker_color=colors[i % len(colors)],
+                ))
+            fig_coef.update_layout(barmode="group")
+    
+        fig_coef.update_layout(
+            title="Model Coefficients",
+            xaxis_title="Feature",
+            yaxis_title="Coefficient value",
+            height=300,
+            template="plotly_white",
+            margin=dict(l=20, r=20, t=40, b=60),
+        )
+        st.plotly_chart(fig_coef, width="stretch")
+        shown_insight = True
+    
+    if not shown_insight:
+        st.info("No feature importance or coefficient visualization available for this model.")
+
+with tab_lc:
+    st.markdown("**Learning Curve** — how train and cross-validation accuracy change as more training data is added.")
+    lc_cv = st.slider("Cross-validation folds", min_value=2, max_value=10, value=5, key="lc_cv")
+
+    if st.button("Compute Learning Curve", key="btn_lc"):
+        with st.spinner("Computing learning curve..."):
+            try:
+                train_sizes, tr_mean, tr_std, val_mean, val_std = compute_learning_curve(clf, X_train, y_train, cv=lc_cv)
+                fig_lc = go.Figure()
+                # Train band
+                fig_lc.add_trace(go.Scatter(
+                    x=np.concatenate([train_sizes, train_sizes[::-1]]),
+                    y=np.concatenate([tr_mean + tr_std, (tr_mean - tr_std)[::-1]]),
+                    fill="toself", fillcolor="rgba(99,110,250,0.15)",
+                    line=dict(color="rgba(0,0,0,0)"), showlegend=False, hoverinfo="skip",
+                ))
+                fig_lc.add_trace(go.Scatter(
+                    x=train_sizes, y=tr_mean,
+                    mode="lines+markers", name="Train score",
+                    line=dict(color="rgba(99,110,250,1)", width=2),
+                ))
+
+                # Val band
+                fig_lc.add_trace(go.Scatter(
+                    x=np.concatenate([train_sizes, train_sizes[::-1]]),
+                    y=np.concatenate([val_mean + val_std, (val_mean - val_std)[::-1]]),
+                    fill="toself", fillcolor="rgba(239,85,59,0.15)",
+                    line=dict(color="rgba(0,0,0,0)"), showlegend=False, hoverinfo="skip",
+                ))
+                fig_lc.add_trace(go.Scatter(
+                    x=train_sizes, y=val_mean,
+                    mode="lines+markers", name="Val score",
+                    line=dict(color="rgba(239,85,59,1)", width=2),
+                ))
+
+                fig_lc.update_layout(
+                    xaxis_title="Training samples",
+                    yaxis_title="Accuracy",
+                    yaxis=dict(range=[0, 1.05]),
+                    height=360, template="plotly_white",
+                    margin=dict(l=20, r=20, t=20, b=60),
+                    legend=dict(x=0.75, y=0.05),
+                )
+                st.plotly_chart(fig_lc, width="stretch")
+
+                # Bias-variance interpretation
+                gap = float(tr_mean[-1] - val_mean[-1])
+                train_score_final = float(tr_mean[-1])
+
+                if train_score_final < 0.75:
+                    verdict = "🔴 **High Bias (Underfitting)** — Both train and val scores are low. The model is too simple."
+                    suggestion = "Try a more complex model, reduce regularization, or add more features."
+                elif gap > 0.10:
+                    verdict = "🟡 **High Variance (Overfitting)** — Train score is much higher than val score."
+                    suggestion = "Increase regularization, reduce model complexity, or gather more training data."
+                else:
+                    verdict = "🟢 **Well Fitted** — Train and val scores are close and both high."
+                    suggestion = "The model generalizes well to unseen data."
+
+                st.info(f"{verdict}\n\n{suggestion}")
+
+            except Exception as e:
+                st.error(f"Learning curve failed: {e}")
+    else:
+        st.caption("Click **Compute Learning Curve** to generate the plot. This may take a few seconds.")
+
+with tab_vc:
+    st.markdown("**Validation Curve** — how train and val score change as one hyperparameter is swept.")
+
+    vc_config = entry.get("val_curve_param")
+
+    if vc_config is None:
+        st.info("Validation curve not configured for this model.")
+    else:
+        st.caption(f"Sweeping **{vc_config['label']}** over {len(vc_config['range'])} values.")
+        vc_cv = st.slider("CV folds", min_value=2, max_value=10, value=5, key="vc_cv")
+
+        if st.button("Compute Validation Curve", key="btn_vc"):
+            with st.spinner(f"Sweeping {vc_config['label']}..."):
+                try:
+                    param_range, tr_mean, tr_std, val_mean, val_std = compute_validation_curve(
+                        clf,
+                        X_train, y_train,
+                        param_name=vc_config["name"],
+                        param_range=vc_config["range"],
+                        cv=vc_cv,
+                    )
+
+                    x_vals = [str(round(v, 6)) if isinstance(v, float) else str(v) for v in param_range]
+
+                    fig_vc = go.Figure()
+
+                    # Train band
+                    fig_vc.add_trace(go.Scatter(
+                        x=x_vals + x_vals[::-1],
+                        y=list(tr_mean + tr_std) + list((tr_mean - tr_std)[::-1]),
+                        fill="toself", fillcolor="rgba(99,110,250,0.15)",
+                        line=dict(color="rgba(0,0,0,0)"), showlegend=False, hoverinfo="skip",
+                    ))
+                    fig_vc.add_trace(go.Scatter(
+                        x=x_vals, y=tr_mean,
+                        mode="lines+markers", name="Train score",
+                        line=dict(color="rgba(99,110,250,1)", width=2),
+                    ))
+
+                    # Val band
+                    fig_vc.add_trace(go.Scatter(
+                        x=x_vals + x_vals[::-1],
+                        y=list(val_mean + val_std) + list((val_mean - val_std)[::-1]),
+                        fill="toself", fillcolor="rgba(239,85,59,0.15)",
+                        line=dict(color="rgba(0,0,0,0)"), showlegend=False, hoverinfo="skip",
+                    ))
+                    fig_vc.add_trace(go.Scatter(
+                        x=x_vals, y=val_mean,
+                        mode="lines+markers", name="Val score",
+                        line=dict(color="rgba(239,85,59,1)", width=2),
+                    ))
+
+                    fig_vc.update_layout(
+                        xaxis_title=vc_config["label"],
+                        yaxis_title="Accuracy",
+                        yaxis=dict(range=[0, 1.05]),
+                        height=360, template="plotly_white",
+                        margin=dict(l=20, r=20, t=20, b=60),
+                        legend=dict(x=0.75, y=0.05),
+                    )
+
+                    if vc_config.get("log_scale"):
+                        fig_vc.update_xaxes(type="category")  # already stringified log values
+
+                    st.plotly_chart(fig_vc, width="stretch")
+
+                    # Optimal value
+                    best_idx = int(np.argmax(val_mean))
+                    st.success(f"Best val score **{val_mean[best_idx]:.4f}** at `{vc_config['label']} = {param_range[best_idx]}`")
+
+                except Exception as e:
+                    st.error(f"Validation curve failed: {e}")
+        else:
+            st.caption("Click **Compute Validation Curve** to generate the plot.")
+
+with tab_tips:
+    tips = entry.get("tips")
+    if tips:
+        col_bp, col_pf = st.columns(2)
+        with col_bp:
+            st.markdown("#### Best Practices")
+            for tip in tips["best_practices"]:
+                st.markdown(f"- {tip}")
+        with col_pf:
+            st.markdown("#### Common Pitfalls")
+            for pitfall in tips["pitfalls"]:
+                st.markdown(f"- {pitfall}")
+    else:
+        st.info("No tips available for this model yet.")
 
 #------Decision Boundary------#
 X_train      = st.session_state.get("X_train")

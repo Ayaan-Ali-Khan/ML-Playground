@@ -20,6 +20,7 @@ Hyperparameter specifications:
   options     : list of values
   format_func : optional lambda str for display (not used in registry, handled in sidebar)
 """
+import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
@@ -78,7 +79,26 @@ MODEL_REGISTRY = {
                 "help": "Maximum iterations for the solver to converge."
             }
         },
-        "fixed_params": {"random_state": 42}
+        "fixed_params": {"random_state": 42},
+        "tips":{
+            "best_practices": [
+                "Standardize features — LR is sensitive to scale.",
+                "Use L2 penalty by default; switch to L1 for sparse features.",
+                "Increase max_iter if the solver warns about non-convergence.",
+                "Try 'lbfgs' for multiclass and 'liblinear' for small datasets.",
+            ],
+            "pitfalls": [
+                "Assumes a linear decision boundary — won't capture complex patterns.",
+                "Low C (strong regularization) can underfit; high C can overfit.",
+                "ElasticNet requires solver='saga' — mismatches cause errors.",
+            ]
+        },
+        "val_curve_param": {
+            "name": "clf__C", # use clf__ prefix because it's inside a Pipeline
+            "label": "C (Regularization)",
+            "range": np.logspace(-3, 3, 10).tolist(),
+            "log_scale": True
+        }
     },
     "svm":{
         "label": "Support Vector Machine",
@@ -126,9 +146,28 @@ MODEL_REGISTRY = {
                 "help": "Degree for polynomial kernel only. Ignored for other kernels."
             }
         },
-        "fixed_params": {"probability": True}
+        "fixed_params": {"probability": True},
+        "tips":{
+            "best_practices": [
+                "Always standardize features — SVM is scale-sensitive.",
+                "Start with RBF kernel; try linear if data is high-dimensional.",
+                "Grid-search C and gamma together on a log scale.",
+                "Use probability=True only when you need predict_proba (slower).",
+            ],
+            "pitfalls": [
+                "Scales poorly with n_samples (O(n²–n³) training time).",
+                "gamma='scale' is usually safer than 'auto'.",
+                "Polynomial kernel can be very slow with high degree.",
+            ]
+        },
+        "val_curve_param": {
+            "name": "clf__C",
+            "label": "C (Regularization)",
+            "range": np.logspace(-3, 3, 10).tolist(),
+            "log_scale": True
+        }
     },
-    "knn": {
+    "knn":{
         "label": "K-Nearest Neighbors",
         "description": (
             "A non-parametric instance-based learner. Classifies a point by majority vote "
@@ -165,7 +204,26 @@ MODEL_REGISTRY = {
                 "help": "Distance function used to find nearest neighbours."
             }
         },
-        "fixed_params": {}
+        "fixed_params": {},
+        "tips":{
+            "best_practices": [
+                "Always normalize features — KNN is distance-based.",
+                "Start with k=5 and tune via cross-validation.",
+                "Use 'distance' weights when data is noisy.",
+                "Manhattan distance can outperform Euclidean on high-dim data.",
+            ],
+            "pitfalls": [
+                "Very slow at prediction time on large datasets (no training phase).",
+                "Suffers badly from the curse of dimensionality.",
+                "k=1 almost always overfits; avoid it unless data is huge and clean.",
+            ]
+        },
+        "val_curve_param": {
+            "name": "clf__n_neighbors",
+            "label": "n_neighbors",
+            "range": list(range(1, 21)),
+            "log_scale": False
+        }
     },
     "decision_tree":{
         "label": "Decision Tree",
@@ -206,7 +264,26 @@ MODEL_REGISTRY = {
                 "help": "Minimum samples required to split an internal node. Higher -> more regularization"
             },
         },
-        "fixed_params": {"random_state": 42}
+        "fixed_params": {"random_state": 42},
+        "tips":{
+            "best_practices": [
+                "Limit max_depth (3-6) to prevent overfitting.",
+                "Use min_samples_split > 2 on small/noisy datasets.",
+                "Entropy and Gini produce similar results — Gini is faster.",
+                "Visualize the tree to interpret decisions.",
+            ],
+            "pitfalls": [
+                "Unconstrained trees memorize training data (overfit easily).",
+                "Highly sensitive to small changes in data (high variance).",
+                "Not great at extrapolating beyond training range.",
+            ]
+        },
+        "val_curve_param": {
+            "name": "clf__n_neighbors",
+            "label": "n_neighbors",
+            "range": list(range(1, 21)),
+            "log_scale": False
+        }
     },
     "random_forest":{
         "label": "Random Forest",
@@ -253,7 +330,26 @@ MODEL_REGISTRY = {
                 "help": "If True, each tree trains on a bootstrap sample. Disabling removes bagging."
             },
         },
-        "fixed_params": {"random_state": 42}
+        "fixed_params": {"random_state": 42},
+        "tips":{
+            "best_practices": [
+                "Start with n_estimators=100; more trees rarely hurt but slow training.",
+                "max_features='sqrt' is a solid default for classification.",
+                "Use feature importances to identify irrelevant features.",
+                "Enable bootstrap=True (default) for variance reduction.",
+            ],
+            "pitfalls": [
+                "Memory-intensive for large n_estimators + deep trees.",
+                "Feature importances can be biased toward high-cardinality features.",
+                "Not easily interpretable compared to a single Decision Tree.",
+            ]
+        },
+        "val_curve_param": {
+            "name": "clf__n_estimators",
+            "label": "n_estimators",
+            "range": [10, 25, 50, 75, 100, 150, 200],
+            "log_scale": False
+        }
     },
     "gradient_boosting":{
         "label": "Gradient Boosting",
@@ -305,7 +401,26 @@ MODEL_REGISTRY = {
                 "help": "Fraction of samples used per tree. < 1.0 adds stochasticity (Stochastic GB)."
             },
         },
-        "fixed_params": {"random_state": 42}
+        "fixed_params": {"random_state": 42},
+        "tips":{
+            "best_practices": [
+                "Keep learning_rate low (0.05-0.1) and n_estimators high.",
+                "Use subsample < 1.0 (stochastic GB) to reduce overfitting.",
+                "Monitor train vs val score — stop early if gap widens.",
+                "Tune max_depth (3-5) before tuning other params.",
+            ],
+            "pitfalls": [
+                "Prone to overfitting with high n_estimators + high learning_rate.",
+                "Much slower to train than Random Forest.",
+                "Sensitive to outliers in the target variable.",
+            ]
+        },
+        "val_curve_param": {
+            "name": "clf__n_estimators",
+            "label": "n_estimators",
+            "range": [10, 25, 50, 75, 100, 150, 200],
+            "log_scale": False
+        }
     },
     "naive_bayes": {
         "label": "Naive Bayes",
@@ -332,6 +447,25 @@ MODEL_REGISTRY = {
             },
         },
         "fixed_params": {},
+        "tips":{
+            "best_practices": [
+                "Works surprisingly well on text and small datasets.",
+                "Increase var_smoothing if features have very small variance.",
+                "Great as a fast baseline before trying complex models.",
+                "Gaussian NB assumes normally distributed continuous features.",
+            ],
+            "pitfalls": [
+                "The 'naive' independence assumption is rarely true in practice.",
+                "Poor calibrated probabilities — use with caution for probability outputs.",
+                "Sensitive to highly correlated features.",
+            ]
+        },
+        "val_curve_param": {
+            "name": "clf__var_smoothing",
+            "label": "var_smoothing",
+            "range": np.logspace(-10, -1, 10).tolist(),
+            "log_scale": True
+        }
     },
     "adaboost":{
         "label": "Ada Boost",
@@ -366,6 +500,25 @@ MODEL_REGISTRY = {
             },
         },
         "fixed_params": {"random_state": 42},
+        "tips":{
+            "best_practices": [
+                "Use shallow Decision Trees (max_depth=1–2) as base estimators.",
+                "Lower learning_rate requires more n_estimators to compensate.",
+                "Monitor training error — AdaBoost should drive it to near zero.",
+                "Works well on binary tasks; multiclass support is limited.",
+            ],
+            "pitfalls": [
+                "Very sensitive to noisy data and outliers (hard labels).",
+                "Can overfit if n_estimators is too high relative to dataset size.",
+                "Slower than Random Forest at inference due to sequential nature.",
+            ]
+        },
+        "val_curve_param":{
+            "name": "clf__n_estimators",
+            "label": "n_estimators",
+            "range": [10, 25, 50, 75, 100, 150, 200],
+            "log_scale": False
+        }
     },
     "voting_classifier":{
         "label": "Voting Classifier",
@@ -406,7 +559,21 @@ MODEL_REGISTRY = {
                 "help": "Add a Descion Tree (depth=5) as a base estimator."
             },
         },
-        "fixed_params": {}
+        "fixed_params": {},
+        "tips":{
+            "best_practices": [
+                "Combine diverse, well-tuned base models for best results.",
+                "Use soft voting when all base models support predict_proba.",
+                "Hard voting is more robust when model probability estimates are poor.",
+                "Ensure base models are trained on the same feature space.",
+            ],
+            "pitfalls": [
+                "Correlated base models add little diversity — pick varied algorithms.",
+                "Soft voting can be dominated by overconfident models.",
+                "Not easily interpretable — treat as a final ensemble, not for exploration.",
+            ]
+        },
+        "val_curve_param": None
     },
     "LDA":{
         "label": "Linear Discriminant Analysis",
@@ -436,23 +603,25 @@ MODEL_REGISTRY = {
                 "help": "Covariance shrinkage. 'auto' uses Ledoit-Wolf lemma. Only valid with lsqr/eigen solver."
             }
         },
-        "fixed_params": {}
+        "fixed_params": {},
+        "tips":{
+            "best_practices": [
+                "Excellent when classes are roughly Gaussian with equal covariance.",
+                "Use shrinkage='auto' with solver='lsqr'/'eigen' for small n.",
+                "Also useful as a dimensionality reduction step before other models.",
+                "Fast and interpretable — good baseline for linearly separable data.",
+            ],
+            "pitfalls": [
+                "Assumes equal class covariance matrices — violated in many real datasets.",
+                "Performs poorly on highly non-linear decision boundaries.",
+                "Sensitive to outliers that distort the class means.",
+            ]
+        },
+        "val_curve_param": {
+            "name": "solver",
+            "label": "solver",
+            "range": ["svd", "lsqr", "eigen"],
+            "log_scale": False
+        }
     }
-}
-
-MODEL_GROUPS = {
-    "CORE": [
-        "logistic_regression",
-        "svm",
-        "knn",
-        "decision_tree",
-        "random_forest",
-        "naive_bayes"
-    ],
-    "bonus":[
-        "gradient_boosting",
-        "adaboost",
-        "voting_classifier",
-        "LDA"
-    ]
 }
