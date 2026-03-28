@@ -16,6 +16,7 @@ from utils.boundary_plot import build_boundary_figure
 from sklearn.svm import SVC
 from sklearn.pipeline import Pipeline
 from utils.insights import compute_learning_curve, compute_validation_curve
+from utils.code_export import generate_export_code
 
 st.title("⚙ Model Training")
 st.caption("Select a model, tune its hyperparameters, and evaluate performance.")
@@ -673,3 +674,32 @@ elif X_train is not None:
             f"true decision boundary lives in {X_train.shape[1]}D space. "
             f"For an accurate boundary, use a synthetic dataset or select 2 features on a 2-feature dataset."
         )
+
+st.divider()
+st.subheader("Export Code")
+st.caption("Get a self-contained Python script that reproduces your exact setup.")
+
+if not st.session_state.get("training_done"):
+    st.info("Train a model first to generate the export snippet.")
+else:
+    dataset_source  = st.session_state.get("dataset_source", "Synthetic")
+    dataset_key_exp = st.session_state.get("dataset_key_export", "moons")
+    n_samples_exp   = st.session_state.get("n_samples_export", 300)
+    noise_exp       = st.session_state.get("noise_export", 0.1)
+    seed_exp        = st.session_state.get("random_seed_export", 42)
+    test_split_exp  = st.session_state.get("test_split_export", 0.2)
+
+    # Generate the code
+    code_str = generate_export_code(
+        model_key=model_key,
+        user_params=user_params,
+        dataset_source=dataset_source,
+        dataset_key=dataset_key_exp,
+        n_samples=n_samples_exp,
+        noise=noise_exp,
+        random_seed=seed_exp,
+        test_split=test_split_exp,
+    )
+
+    # Display with syntax highlighting
+    st.code(code_str, language="python")

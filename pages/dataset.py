@@ -137,6 +137,16 @@ if X is not None and y is not None:
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_split, random_state=random_seed, stratify=y)
 
     # Store in session state for other pages (model training etc.)
+    if source == "Synthetic":
+        st.session_state["n_samples_export"] = n_samples
+        st.session_state["noise_export"] = noise
+    else:
+        st.session_state["n_samples_export"] = 300
+        st.session_state["noise_export"] = 0.0
+    st.session_state["dataset_source"] = source
+    st.session_state["dataset_key_export"] = dataset_key
+    st.session_state["random_seed_export"] = random_seed
+    st.session_state["test_split_export"] = test_split
     st.session_state["X_train"] = X_train
     if source == "Real (sklearn)":
         st.session_state["X_vis"] = X_vis
