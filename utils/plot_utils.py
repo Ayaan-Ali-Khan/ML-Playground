@@ -52,7 +52,7 @@ def plot_dataset(X:np.ndarray, y:np.ndarray, feature_names:list[str], class_name
                 y=X[mask, 1],
                 mode="markers",
                 name=label,
-                marker=dict(color=color, size=6, opacity=0.8, line=dict(width=0.5, color="white")),
+                marker=dict(color=color, size=7, opacity=0.8, line=dict(width=0.5, color="#0d0f14")),
                 hovertemplate=(
                     f"<b>{label}</b><br>"
                     f"{feature_names[0]}: %{{x:.3f}}<br>"
@@ -100,9 +100,9 @@ def plot_dataset(X:np.ndarray, y:np.ndarray, feature_names:list[str], class_name
         ),
         height=420,
         margin=dict(l=40, r=40, t=70, b=40),
-        template="plotly_white",
+        template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(248,249,250,1)",
+        plot_bgcolor="rgba(13, 15, 20, 1)",
     )
  
     return fig

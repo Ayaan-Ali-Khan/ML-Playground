@@ -10,15 +10,12 @@ from datasets.synthetic import get_synthetic_data, SYNTHETIC_DATASETS
 from datasets.real import get_real_dataset, get_feature_names, REAL_DATASETS
 from utils.plot_utils import plot_dataset
 
-#------PAGE CONFIG------#
-# st.set_page_config(
-#     page_title="Dataset • ML Playground",
-#     page_icon="./assets/flask.png",
-#     layout="wide"
-# )
 
 st.title("📊 Dataset Module")
-st.caption("Select, configure and preview your dataset before training.")
+st.caption(
+    "Choose a data source, configure its parameters, and preview it before training. "
+    "All settings here are automatically passed to the **Train Model** page."
+)
 
 #------SIDEBAR------#
 with st.sidebar:
@@ -96,7 +93,11 @@ with st.sidebar:
         use_2d = st.toggle(
             "2D Visualization Mode",
             value=True,
-            help="Select 2 features to plot the decision boundary later.",
+            help=(
+                "When on, selects 2 features for plotting the decision boundary. "
+                "The model can still be trained on *all* features — the boundary plot "
+                "will show a 2-D slice with other features fixed at their median."
+            ),
         )
  
         if use_2d:
@@ -119,18 +120,23 @@ with st.sidebar:
 #------Load data------#
 X = y = feature_names = class_names = None
 
-if source == "Synthetic":
-    X, y = get_synthetic_data(dataset_type=dataset_key, n_samples=n_samples, noise=noise, random_seed=random_seed)
-    all_features_names = ["Feature 0", "Feature 1"]
-    n_classes = SYNTHETIC_DATASETS[dataset_key]["n_classes"]
-    class_names = [f"Class {i}" for i in range(n_classes)]
+with st.spinner("Loading dataset"):
+    try:
+        if source == "Synthetic":
+            X, y = get_synthetic_data(dataset_type=dataset_key, n_samples=n_samples, noise=noise, random_seed=random_seed)
+            all_features_names = ["Feature 0", "Feature 1"]
+            n_classes = SYNTHETIC_DATASETS[dataset_key]["n_classes"]
+            class_names = [f"Class {i}" for i in range(n_classes)]
 
-elif source == "Real (sklearn)":
-    X, X_vis, y, feature_names, class_names = get_real_dataset(
-        dataset_name=dataset_key,
-        feature_indices=feature_indices if use_2d else None
-    )
-    all_features_names = get_feature_names(dataset_key)
+        elif source == "Real (sklearn)":
+            X, X_vis, y, feature_names, class_names = get_real_dataset(
+                dataset_name=dataset_key,
+                feature_indices=feature_indices if use_2d else None
+            )
+            all_features_names = get_feature_names(dataset_key)
+    except Exception as e:
+        st.error(f"❌ Failed to load dataset: {e}")
+        st.stop()
 
 #------Data splitting------#
 if X is not None and y is not None:
@@ -159,11 +165,12 @@ if X is not None and y is not None:
     st.session_state["class_names"] = list(class_names)
     st.session_state["dataset_ready"] = True
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Total Samples", X.shape[0])
     col2.metric("Features", X.shape[1])
-    col3.metric("Train Samples", X_train.shape[0])
-    col4.metric("Test Samples", X_test.shape[0])
+    col3.metric("Classes", len(np.unique(y)))
+    col4.metric("Train Samples", X_train.shape[0])
+    col5.metric("Test Samples", X_test.shape[0])
     st.divider()
 
     #------Preview plot------#
