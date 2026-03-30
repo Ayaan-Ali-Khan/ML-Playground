@@ -20,7 +20,7 @@
 ---
 <div align="center">
 
-![Tutorial Demo](./assets/tutorial.gif)
+![Tutorial Demo](./assets/readme/tutorial.gif)
 
 *Selecting a dataset, switching between classifiers, and tuning hyperparameters in real time — the decision boundary updates with every change.*
 
