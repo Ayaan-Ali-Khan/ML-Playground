@@ -22,7 +22,7 @@ _NEEDS_SCALING = {
     "logistic_regression",
     "knn",
     "svm",
-    "lda",
+    "LDA",
     "naive_bayes",
 }
 

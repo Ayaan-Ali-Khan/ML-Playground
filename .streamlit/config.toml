@@ -21,6 +21,6 @@ fastReruns = true
 [client]
 # toolbarMode = "minimal" hides the top-right Streamlit hamburger menu clutter in production.
 # ➡false
-showErrorDetails = true
+showErrorDetails = false
 # ➡auto
 toolbarMode = "minimal"

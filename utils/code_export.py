@@ -7,17 +7,117 @@ _MODEL_IMPORT = {
     "gradient_boosting":   "from sklearn.ensemble import GradientBoostingClassifier",
     "svm":                 "from sklearn.svm import SVC",
     "naive_bayes":         "from sklearn.naive_bayes import GaussianNB",
-    "lda":                 "from sklearn.discriminant_analysis import LinearDiscriminantAnalysis",
+    "LDA":                 "from sklearn.discriminant_analysis import LinearDiscriminantAnalysis",
     "adaboost":            "from sklearn.ensemble import AdaBoostClassifier",
-    "voting":              "from sklearn.ensemble import VotingClassifier",
+    "voting_classifier": (
+        "from sklearn.ensemble import VotingClassifier\n"
+        "from sklearn.linear_model import LogisticRegression\n"
+        "from sklearn.neighbors import KNeighborsClassifier\n"
+        "from sklearn.tree import DecisionTreeClassifier"
+    )
 }
 
 # Models that are wrapped in a StandardScaler Pipeline
-_NEEDS_SCALER = {"logistic_regression", "knn", "svm", "lda", "naive_bayes"}
+_NEEDS_SCALER = {
+    "logistic_regression",
+    "knn",
+    "svm",
+    "LDA",
+    "naive_bayes",
+    "voting_classifier"
+}
+
+_FIXED_PARAMS = {
+    "logistic_regression": {"random_state": 42},
+    "decision_tree": {"random_state": 42},
+    "random_forest": {"random_state": 42},
+    "gradient_boosting": {"random_state": 42},
+    "svm": {"probability": True},
+    "adaboost": {"random_state": 42},
+}
+
+_ALLOWED_PARAMS = {
+    "logistic_regression": {"C", "l1_ratio", "solver", "max_iter", "penalty"},
+    "knn": {"n_neighbors", "weights", "metric"},
+    "decision_tree": {"max_depth", "criterion", "min_samples_split"},
+    "random_forest": {"n_estimators", "max_depth", "max_features", "bootstrap"},
+    "gradient_boosting": {"n_estimators", "learning_rate", "max_depth", "subsample"},
+    "svm": {"kernel", "C", "gamma", "degree"},
+    "naive_bayes": {"var_smoothing"},
+    "adaboost": {"n_estimators", "learning_rate"},
+    "LDA": {"solver", "shrinkage"}
+}
+
+
+def _fmt(v):
+    """Format parameter values as valid Python literals."""
+    if isinstance(v, str):
+        return f'"{v}"'
+    if isinstance(v, bool):
+        return str(v)
+    if isinstance(v, float):
+        return repr(round(v, 8))
+    return repr(v)
+
+
+def _normalize_user_params(model_key: str, user_params: dict) -> dict:
+    """Mirror model.builder adjustments so exported scripts match app behavior."""
+    params = dict(user_params)
+
+    if model_key == "naive_bayes" and "var_smoothing" in params:
+        params["var_smoothing"] = 10 ** params["var_smoothing"]
+
+    if model_key == "random_forest" and params.get("max_features") == "none":
+        params["max_features"] = None
+
+    if model_key == "logistic_regression":
+        l1_ratio = params.get("l1_ratio", 0.0)
+        solver = params.get("solver", "lbfgs")
+        if l1_ratio == "none":
+            params["penalty"] = None
+        if l1_ratio == 1.0 and solver not in ("liblinear", "saga"):
+            params["solver"] = "saga"
+        elif 0.0 < l1_ratio < 1.0 and solver != "saga":
+            params["solver"] = "saga"
+            params["l1_ratio"] = 0.5
+
+    if model_key in {"LDA", "lda"}:
+        if params.get("shrinkage") == "none":
+            params["shrinkage"] = None
+        if params.get("solver") == "svd":
+            params["shrinkage"] = None
+
+    return params
+
+
+def _build_voting_constructor(user_params: dict) -> str:
+    """Build the VotingClassifier constructor string from toggle selections."""
+    voting_strategy = user_params.get("voting", "soft")
+    estimators = []
+
+    if user_params.get("include_lr", True):
+        estimators.append("('lr', LogisticRegression(max_iter=200, random_state=42))")
+    if user_params.get("include_knn", True):
+        estimators.append("('knn', KNeighborsClassifier(n_neighbors=5))")
+    if user_params.get("include_tree", True):
+        estimators.append("('tree', DecisionTreeClassifier(max_depth=5, random_state=42))")
+
+    if len(estimators) < 2:
+        estimators = [
+            "('lr', LogisticRegression(max_iter=200, random_state=42))",
+            "('knn', KNeighborsClassifier(n_neighbors=5))",
+        ]
+
+    return f"VotingClassifier(estimators=[{', '.join(estimators)}], voting={_fmt(voting_strategy)})"
 
 # ── Per-model constructor map ───────────────────────────────────────────────
 def _build_constructor(model_key: str, user_params: dict) -> str:
     """Return the model constructor call as a string, e.g. 'SVC(C=1.0, kernel="rbf")'"""
+    normalized_params = _normalize_user_params(model_key, user_params)
+
+    if model_key in {"voting_classifier", "voting"}:
+        return _build_voting_constructor(normalized_params)
+
     class_map = {
         "logistic_regression": "LogisticRegression",
         "knn":                 "KNeighborsClassifier",
@@ -26,23 +126,19 @@ def _build_constructor(model_key: str, user_params: dict) -> str:
         "gradient_boosting":   "GradientBoostingClassifier",
         "svm":                 "SVC",
         "naive_bayes":         "GaussianNB",
+        "LDA":                 "LinearDiscriminantAnalysis",
         "lda":                 "LinearDiscriminantAnalysis",
         "adaboost":            "AdaBoostClassifier",
+        "voting_classifier":   "VotingClassifier",
         "voting":              "VotingClassifier",
     }
     cls = class_map.get(model_key, "UnknownModel")
 
-    # Format param values correctly (strings need quotes, numbers/bools don't)
-    def _fmt(v):
-        if isinstance(v, str):
-            return f'"{v}"'
-        if isinstance(v, bool):
-            return str(v)
-        if isinstance(v, float):
-            return repr(round(v, 8))
-        return repr(v)
+    valid_keys = _ALLOWED_PARAMS.get(model_key, set(normalized_params.keys()))
+    filtered_params = {k: v for k, v in normalized_params.items() if k in valid_keys}
+    all_params = {**filtered_params, **_FIXED_PARAMS.get(model_key, {})}
 
-    params_str = ", ".join(f"{k}={_fmt(v)}" for k, v in user_params.items())
+    params_str = ", ".join(f"{k}={_fmt(v)}" for k, v in all_params.items())
     return f"{cls}({params_str})"
 
 
@@ -54,22 +150,23 @@ _SYNTHETIC_LOADER = {
     ),
     "circles": (
         "from sklearn.datasets import make_circles\n"
-        "X, y = make_circles(n_samples={n_samples}, noise={noise}, random_state={seed})"
+        "X, y = make_circles(n_samples={n_samples}, noise={noise}, factor=0.5, random_state={seed})"
     ),
     "blobs": (
         "from sklearn.datasets import make_blobs\n"
-        "X, y = make_blobs(n_samples={n_samples}, random_state={seed})"
+        "X, y = make_blobs(n_samples={n_samples}, centers=3, cluster_std={noise} * 3 + 0.5, random_state={seed})"
     ),
     "linear": (
         "from sklearn.datasets import make_classification\n"
-        "X, y = make_classification(n_samples={n_samples}, n_features=2, "
-        "n_redundant=0, random_state={seed})"
+        "X, y = make_classification(n_samples={n_samples}, n_features=2, n_informative=2, "
+        "n_redundant=0, n_clusters_per_class=1, flip_y={noise}, random_state={seed})"
     ),
     "xor": (
         "import numpy as np\n"
         "rng = np.random.RandomState({seed})\n"
         "X = rng.randn({n_samples}, 2)\n"
-        "y = np.array(X[:, 0] * X[:, 1] > 0, dtype=int)"
+        "y = np.logical_xor(X[:, 0] > 0, X[:, 1] > 0).astype(int)\n"
+        "X += rng.normal(scale={noise}, size=X.shape)"
     ),
 }
 
@@ -190,8 +287,19 @@ def generate_export_code(
     ]
 
     # ── 8. Optional: predict_proba note
-    proba_models = {"logistic_regression", "knn", "random_forest",
-                    "gradient_boosting", "naive_bayes", "adaboost", "voting"}
+    proba_models = {
+        "logistic_regression",
+        "knn",
+        "random_forest",
+        "gradient_boosting",
+        "svm",
+        "naive_bayes",
+        "adaboost",
+        "voting_classifier",
+        "voting",
+        "LDA",
+        "lda",
+    }
     if model_key in proba_models:
         lines += [
             "# ── Probability scores (optional)",

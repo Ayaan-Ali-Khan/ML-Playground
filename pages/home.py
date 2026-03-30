@@ -1,17 +1,37 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
-from sklearn.datasets import make_moons
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
 import base64
-def get_image_base64(path):
-    with open(path, "rb") as img_file:
-        return base64.b64encode(img_file.read()).decode()
+import random
+from pathlib import Path
+
+
+def _image_to_base64(path: Path) -> str:
+  with path.open("rb") as img_file:
+    return base64.b64encode(img_file.read()).decode("utf-8")
+
+
+_ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
+_HERO_PREVIEW_OPTIONS = [
+  {
+    "file": "circles.png",
+    "label": "Circles",
+    "caption": "Concentric class geometry with a radial decision boundary.",
+  },
+  {
+    "file": "linear.png",
+    "label": "Linear",
+    "caption": "Linearly separable classes where simple models shine.",
+  },
+  {
+    "file": "xor.png",
+    "label": "XOR",
+    "caption": "Classic non-linear XOR pattern that defeats linear separators.",
+  },
+]
+
+_hero_preview = random.choice(_HERO_PREVIEW_OPTIONS)
+_HERO_PREVIEW_B64 = _image_to_base64(_ASSETS_DIR / _hero_preview["file"])
+_HERO_PREVIEW_LABEL = _hero_preview["label"]
+_HERO_PREVIEW_CAPTION = _hero_preview["caption"]
 
 # ── Page-local CSS (supplements global styles in app.py) ─────────────────────
 st.markdown("""
@@ -34,6 +54,51 @@ st.markdown("""
 .pg-subhead {
     font-size: 14px; color: rgba(255,255,255,0.38);
     line-height: 1.75; max-width: 520px; margin-bottom: 28px;
+}
+
+/* ── Hero visual panel ── */
+.pg-hero-visual {
+  background: linear-gradient(160deg, rgba(74,222,128,0.06), rgba(13,15,20,0.92));
+  border: 1px solid #1a1f2e;
+  border-radius: 12px;
+  padding: 12px;
+}
+.pg-hero-visual-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.pg-hero-chip,
+.pg-hero-chip-muted {
+  font-family: 'JetBrains Mono','Courier New',monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 999px;
+}
+.pg-hero-chip {
+  color: rgba(74,222,128,0.8);
+  border: 1px solid rgba(74,222,128,0.25);
+  background: rgba(74,222,128,0.08);
+}
+.pg-hero-chip-muted {
+  color: rgba(255,255,255,0.35);
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+}
+.pg-hero-visual-img {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #1a1f2e;
+  display: block;
+}
+.pg-hero-visual-foot {
+  margin-top: 9px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.34);
+  line-height: 1.55;
 }
 
 /* ── Section separator ── */
@@ -226,21 +291,38 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # ── Hero ──────────────────────────────────────────────────────────────────────
-st.markdown("""
-<div class="pg-eyebrow">
-  <span class="pg-eyebrow-line"></span>
-  Interactive ML Sandbox
-</div>
-<div class="pg-headline">Train without<br>writing <span>a line.</span></div>
-<p class="pg-subhead">
-  Pick a dataset, configure your hyperparameters, and watch classical
-  algorithms learn — live in the browser. No setup, no environment, no friction.
-</p>
-""", unsafe_allow_html=True)
+hero_left, hero_right = st.columns([1.08, 0.92], gap="large")
 
-# CTA — uses real Streamlit button for the primary action
-if st.button("→  Pick a Dataset", width="content"):
-    st.switch_page("pages/dataset.py")
+with hero_left:
+    st.markdown("""
+    <div class="pg-eyebrow">
+      <span class="pg-eyebrow-line"></span>
+      Interactive ML Sandbox
+    </div>
+    <div class="pg-headline">Train without<br>writing <span>a line.</span></div>
+    <p class="pg-subhead">
+      Pick a dataset, configure your hyperparameters, and watch classical
+      algorithms learn — live in the browser. No setup, no environment, no friction.
+    </p>
+    """, unsafe_allow_html=True)
+
+    # CTA — uses real Streamlit button for the primary action
+    if st.button("→  Pick a Dataset", width="content"):
+        st.switch_page("pages/dataset.py")
+
+with hero_right:
+    st.markdown(f"""
+    <div class="pg-hero-visual">
+      <div class="pg-hero-visual-head">
+        <span class="pg-hero-chip">Decision Boundary</span>
+        <span class="pg-hero-chip-muted">{_HERO_PREVIEW_LABEL}</span>
+      </div>
+      <img class="pg-hero-visual-img" src="data:image/png;base64,{_HERO_PREVIEW_B64}" alt="{_HERO_PREVIEW_LABEL} decision boundary preview" />
+      <div class="pg-hero-visual-foot">
+        {_HERO_PREVIEW_CAPTION}
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 

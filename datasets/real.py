@@ -5,9 +5,7 @@ Includes feature selection for 2D visualization.
 """
 
 import pandas as pd
-import numpy as np
 from sklearn.datasets import load_iris, load_wine, load_breast_cancer
-from sklearn.preprocessing import LabelEncoder
 
 REAL_DATASETS = {
     "iris": {
@@ -30,17 +28,18 @@ REAL_DATASETS = {
     },
 }
 
-def get_real_dataset(dataset_name:str, feature_indices:tuple[int, int]):
+def get_real_dataset(dataset_name:str, feature_indices:tuple[int, int] | None):
     """
     Load a real sklearn dataset, selecting 2 features for 2D visualization.
  
     Args:
         dataset_name: One of 'iris', 'wine', 'breast_cancer'
         feature_indices: Tuple (i, j) selecting which 2 features to keep for visualization.
-                         If None, all features are returned.
+                 If None, the first 2 features are used for visualization.
  
     Returns:
-        X:             Feature matrix
+        X:             Full feature matrix
+        X_vis:         2D feature slice used for visualization
         y:             Integer class labels
         feature_names: List of feature name strings
         class_names:   List of class name strings
@@ -63,10 +62,10 @@ def get_real_dataset(dataset_name:str, feature_indices:tuple[int, int]):
     if feature_indices is not None:
         i, j = feature_indices
         X_vis = X[:, [i, j]]
-        feature_names = [feature_names[i], feature_names[j]]
         return X, X_vis, y, feature_names, class_names
     else:
-        return X, y, feature_names, class_names
+        X_vis = X[:, :2] if X.shape[1] >= 2 else X
+        return X, X_vis, y, feature_names, class_names
 
 def get_feature_names(dataset_name:str) -> list[str]:
     """

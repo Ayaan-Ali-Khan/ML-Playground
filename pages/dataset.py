@@ -118,7 +118,7 @@ with st.sidebar:
             feature_indices = None
 
 #------Load data------#
-X = y = feature_names = class_names = None
+X = y = feature_names = class_names = X_vis = None
 
 with st.spinner("Loading dataset"):
     try:
@@ -155,9 +155,14 @@ if X is not None and y is not None:
     st.session_state["test_split_export"] = test_split
     st.session_state["X_train"] = X_train
     if source == "Real (sklearn)":
+        if use_2d and feature_indices is not None:
+            viz_feat_idx_0, viz_feat_idx_1 = feature_indices
+        else:
+            viz_feat_idx_0 = 0
+            viz_feat_idx_1 = 1 if X.shape[1] > 1 else 0
         st.session_state["X_vis"] = X_vis
-        st.session_state["viz_feat_idx_0"] = feature_indices[0]
-        st.session_state["viz_feat_idx_1"] = feature_indices[1]
+        st.session_state["viz_feat_idx_0"] = viz_feat_idx_0
+        st.session_state["viz_feat_idx_1"] = viz_feat_idx_1
     st.session_state["X_test"] = X_test
     st.session_state["y_train"] = y_train
     st.session_state["y_test"] = y_test

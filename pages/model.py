@@ -6,11 +6,10 @@ Main:    metrics, confusion matrix, ROC curve
 import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
-import plotly.subplots as  make_subplots
 import plotly.figure_factory as ff
 import plotly.express as px
 from models.registry import MODEL_REGISTRY
-from models.builder import build_model, get_default_params
+from models.builder import build_model
 from models.evaluator import train_and_evaluate, EvalResult
 from utils.boundary_plot import build_boundary_figure
 from sklearn.svm import SVC
@@ -357,9 +356,9 @@ tab_fi, tab_lc, tab_vc, tab_tips = st.tabs([
 
 with tab_fi:
     # Extract the actual estimator from Pipeline if wrapped
-    actual_clf = clf
-    if hasattr(clf, "named_steps"):
-        actual_clf = clf.named_steps.get("clf", clf)
+    actual_clf = st.session_state.get("trained_model", clf)
+    if hasattr(actual_clf, "named_steps"):
+        actual_clf = actual_clf.named_steps.get("clf", actual_clf)
     
     shown_insight = False
     
@@ -585,6 +584,7 @@ X_train      = st.session_state.get("X_train")
 X_test       = st.session_state.get("X_test")
 y_train      = st.session_state.get("y_train")
 y_test       = st.session_state.get("y_test")
+boundary_n_classes = len(np.unique(y_train)) if y_train is not None else 0
 feature_names = st.session_state.get("feature_names", ["Feature 0", "Feature 1"])
 class_names   = st.session_state.get("class_names", None)
 trained_model = st.session_state.get("trained_model", None)
@@ -617,7 +617,7 @@ if trained_model is None:
     st.info("Train a model above to see the decision boundary.")
 
 elif X_train is not None:
-    has_proba = hasattr(trained_model, "predict_proba") and n_classes==2
+    has_proba = hasattr(trained_model, "predict_proba") and boundary_n_classes == 2
     use_proba = False
     show_support_vectors = False
 

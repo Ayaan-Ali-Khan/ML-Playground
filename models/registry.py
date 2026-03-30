@@ -56,7 +56,7 @@ MODEL_REGISTRY = {
             "l1_ratio":{
                 "type": "slider_float",
                 "label": "L1 Ratio",
-                "default": "0.0",
+                "default": 0.0,
                 "min": 0.0,
                 "max": 1.0,
                 "step": 0.001,
@@ -279,8 +279,8 @@ MODEL_REGISTRY = {
             ]
         },
         "val_curve_param": {
-            "name": "clf__n_neighbors",
-            "label": "n_neighbors",
+            "name": "max_depth",
+            "label": "max_depth",
             "range": list(range(1, 21)),
             "log_scale": False
         }
@@ -345,7 +345,7 @@ MODEL_REGISTRY = {
             ]
         },
         "val_curve_param": {
-            "name": "clf__n_estimators",
+            "name": "n_estimators",
             "label": "n_estimators",
             "range": [10, 25, 50, 75, 100, 150, 200],
             "log_scale": False
@@ -416,7 +416,7 @@ MODEL_REGISTRY = {
             ]
         },
         "val_curve_param": {
-            "name": "clf__n_estimators",
+            "name": "n_estimators",
             "label": "n_estimators",
             "range": [10, 25, 50, 75, 100, 150, 200],
             "log_scale": False
@@ -514,7 +514,7 @@ MODEL_REGISTRY = {
             ]
         },
         "val_curve_param":{
-            "name": "clf__n_estimators",
+            "name": "n_estimators",
             "label": "n_estimators",
             "range": [10, 25, 50, 75, 100, 150, 200],
             "log_scale": False
@@ -618,7 +618,7 @@ MODEL_REGISTRY = {
             ]
         },
         "val_curve_param": {
-            "name": "solver",
+            "name": "clf__solver",
             "label": "solver",
             "range": ["svd", "lsqr", "eigen"],
             "log_scale": False

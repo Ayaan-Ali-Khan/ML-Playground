@@ -20,6 +20,8 @@ st.markdown("""
 .block-container {
     padding-top: 3rem !important;
     padding-bottom: 3rem !important;
+    padding-left: 3.6rem !important;
+    padding-right: 3.6rem !important;
 }
 
 /* ── Sidebar shell ── */
@@ -27,7 +29,7 @@ st.markdown("""
     background-color: #0d0f14 !important;
     border-right: 1px solid #1a1f2e !important;
     min-width: 230px !important;
-    max-width: 230px !important;
+    max-width: 260px !important;
 }
 [data-testid="stSidebar"] > div:first-child {
     padding-top: 0 !important;
@@ -209,7 +211,7 @@ hr {
     background: #0d0f14;
     border: 1px solid #1a1f2e;
     border-radius: 10px;
-    padding: 14px 18px;
+    padding: 14px 12px;
 }
 [data-testid="stMetricLabel"] p {
     font-family: 'JetBrains Mono', 'Courier New', monospace !important;
@@ -220,6 +222,7 @@ hr {
 }
 [data-testid="stMetricValue"] {
     color: #ffffff !important;
+    font-size: 30px;
 }
 
 /* ── Info / success / warning boxes ── */
@@ -239,7 +242,7 @@ hr {
 """, unsafe_allow_html=True)
 
 pages = st.navigation({
-    "🧪 Playground": [
+    "ML Playground": [
         st.Page("pages/home.py", title="Home"),
         st.Page("pages/dataset.py", title="Dataset"),
         st.Page("pages/model.py", title="Train Model")
