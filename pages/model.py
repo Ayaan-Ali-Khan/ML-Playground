@@ -29,7 +29,18 @@ y_train = st.session_state["y_train"]
 X_test = st.session_state["X_test"]
 y_test = st.session_state["y_test"]
 feature_names = st.session_state["feature_names"]
-class_names = st.session_state["class_names"]
+class_names = st.session_state.get("class_names")
+# --- Detect dataset change and clear stale results ---
+current_dataset = st.session_state.get("dataset_key_export")  # or whatever key you use
+
+if "last_model_dataset" not in st.session_state:
+    st.session_state.last_model_dataset = current_dataset
+
+if st.session_state.last_model_dataset != current_dataset:
+    st.session_state.last_model_dataset = current_dataset
+    # Clear stale training artifacts
+    for key in ["eval_result", "trained_model", "class_names"]:  # adjust key names to match yours
+        st.session_state.pop(key, None)
 
 #------Sidebar------#
 with st.sidebar:
@@ -162,7 +173,7 @@ if train_clicked or st.session_state.get("last_fingerprint") != params_fingerpri
         st.stop()
 
 result = st.session_state.get("eval_result")
-if result.error:
+if result is not None and result.error:
     st.error(f"Training Error: {result.error}")
     st.stop()
 
@@ -190,157 +201,158 @@ else:
         m2.metric("F1 Score", f"{result.test_f1:.3f}", delta=f"{result.test_f1 - result.train_f1:+.3f}")
         m3.metric("Precision", f"{result.test_precision:.3f}", delta=f"{result.test_precision - result.train_precision:+.3f}")
         m4.metric("Recall", f"{result.test_recall:.3f}", delta=f"{result.test_recall - result.train_recall:+.3f}")
-
-st.caption(f"⏱️ Training time: **{result.train_time_ms:.1f} ms**")
+    st.caption(f"⏱️ Training time: **{result.train_time_ms:.1f} ms**")
 st.divider()
 
 #------Confusion Matrix + ROC + PR curve------#
 col_cm, col_roc = st.columns(2)
 
-with col_cm:
-    st.subheader("Confusion Matrix")
-    cm = result.conf_matrix
-    display_labels = class_names if class_names is not None else [f"Class{i}" for i in range(cm.shape[0])]
-    fig_cm = ff.create_annotated_heatmap(
-        z=cm,
-        x=display_labels,
-        y=display_labels,
-        colorscale="Blues",
-        showscale=True,
-        reversescale=False,
-    )
-    fig_cm.update_layout(
-        xaxis_title="Predicted",
-        yaxis_title="Actual",
-        yaxis_autorange="reversed",
-        height=360,
-        margin=dict(l=20, r=20, t=30, b=60),
-        template="plotly_white",
-    )
-    st.plotly_chart(fig_cm, width="stretch")
+if result is not None:
+    with col_cm:
+        st.subheader("Confusion Matrix")
+        if "eval_result" in st.session_state:
+            cm = result.conf_matrix
+            display_labels = class_names if class_names is not None else [f"Class{i}" for i in range(cm.shape[0])]
+            fig_cm = ff.create_annotated_heatmap(
+                z=cm,
+                x=display_labels,
+                y=display_labels,
+                colorscale="Blues",
+                showscale=True,
+                reversescale=False,
+            )
+            fig_cm.update_layout(
+                xaxis_title="Predicted",
+                yaxis_title="Actual",
+                yaxis_autorange="reversed",
+                height=360,
+                margin=dict(l=20, r=20, t=30, b=60),
+                template="plotly_white",
+            )
+            st.plotly_chart(fig_cm, width="stretch")
 
-with col_roc:
-    st.subheader("ROC Curve")
-    if result.roc_auc is not None and result.fpr is not None:
-        fig_roc = go.Figure()
+    with col_roc:
+        st.subheader("ROC Curve")
+        if result.roc_auc is not None and result.fpr is not None:
+            fig_roc = go.Figure()
 
-        # Diagonal baseline
-        fig_roc.add_trace(
-            go.Scatter(
-            x=[0, 1], y=[0, 1],
-            mode="lines",
-            line=dict(dash="dash", color="gray", width=1),
-            name="Random (AUC = 0.50)",
-            showlegend=True,
-        ))
-
-        colors = px.colors.qualitative.Set2
-
-        if isinstance(result.fpr, dict):
-            # Multiclass: one curve per class
-            for i, cls in enumerate(result.fpr.keys()):
-                label = class_names[cls] if cls < len(class_names) else f"Class {cls}"
-                fig_roc.add_trace(go.Scatter(
-                    x=result.fpr[cls],
-                    y=result.tpr[cls],
-                    mode="lines",
-                    name=label,
-                    line=dict(color=colors[i % len(colors)], width=2),
-                ))
-        else:
-            # Binary
+            # Diagonal baseline
             fig_roc.add_trace(
                 go.Scatter(
-                x=result.fpr,
-                y=result.tpr,
+                x=[0, 1], y=[0, 1],
                 mode="lines",
-                name=f"ROC (AUC = {result.roc_auc:.3f})",
+                line=dict(dash="dash", color="gray", width=1),
+                name="Random (AUC = 0.50)",
+                showlegend=True,
+            ))
+
+            colors = px.colors.qualitative.Set2
+
+            if isinstance(result.fpr, dict):
+                # Multiclass: one curve per class
+                for i, cls in enumerate(result.fpr.keys()):
+                    label = class_names[cls] if class_names is not None and cls < len(class_names) else f"Class {cls}"
+                    fig_roc.add_trace(go.Scatter(
+                        x=result.fpr[cls],
+                        y=result.tpr[cls],
+                        mode="lines",
+                        name=label,
+                        line=dict(color=colors[i % len(colors)], width=2),
+                    ))
+            else:
+                # Binary
+                fig_roc.add_trace(
+                    go.Scatter(
+                    x=result.fpr,
+                    y=result.tpr,
+                    mode="lines",
+                    name=f"ROC (AUC = {result.roc_auc:.3f})",
+                    line=dict(color=colors[0], width=2),
+                    fill="tozeroy",
+                    fillcolor="rgba(102,194,165,0.15)",
+                ))
+
+            fig_roc.update_layout(
+                xaxis_title="False Positive Rate",
+                yaxis_title="True Positive Rate",
+                height=360,
+                margin=dict(l=20, r=20, t=30, b=60),
+                template="plotly_white",
+                legend=dict(x=0.55, y=0.1),
+            )
+            if result.roc_auc:
+                st.plotly_chart(fig_roc, width="stretch")
+                st.caption(f"Weighted ROC-AUC: **{result.roc_auc:.4f}**")
+        else:
+            st.info("ROC curve not available for this model/dataset combination.")
+    
+    st.subheader("Precision-Recall Curve")
+    
+    if result.y_test_proba is not None:
+        from sklearn.metrics import precision_recall_curve, average_precision_score
+        from sklearn.preprocessing import label_binarize
+    
+        colors = px.colors.qualitative.Set2
+        n_classes = len(np.unique(y_test))
+    
+        fig_pr = go.Figure()
+    
+        if n_classes == 2:
+            precision, recall, _ = precision_recall_curve(y_test, result.y_test_proba[:, 1])
+            ap = average_precision_score(y_test, result.y_test_proba[:, 1])
+            baseline = y_test.sum() / len(y_test)   # positive class ratio
+    
+            # Baseline (random classifier)
+            fig_pr.add_trace(go.Scatter(
+                x=[0, 1], y=[baseline, baseline],
+                mode="lines",
+                line=dict(dash="dash", color="gray", width=1),
+                name=f"Random (AP = {baseline:.2f})",
+            ))
+            fig_pr.add_trace(go.Scatter(
+                x=recall, y=precision,
+                mode="lines",
+                name=f"PR curve (AP = {ap:.3f})",
                 line=dict(color=colors[0], width=2),
                 fill="tozeroy",
                 fillcolor="rgba(102,194,165,0.15)",
             ))
-
-        fig_roc.update_layout(
-            xaxis_title="False Positive Rate",
-            yaxis_title="True Positive Rate",
-            height=360,
-            margin=dict(l=20, r=20, t=30, b=60),
+            st.caption(f"Average Precision: **{ap:.4f}**")
+    
+        else:
+            # One-vs-Rest per class
+            classes = np.unique(y_train)
+            y_bin = label_binarize(y_test, classes=classes)
+            ap_scores = []
+    
+            for i, cls in enumerate(classes):
+                precision, recall, _ = precision_recall_curve(y_bin[:, i], result.y_test_proba[:, i])
+                ap = average_precision_score(y_bin[:, i], result.y_test_proba[:, i])
+                ap_scores.append(ap)
+                label = class_names[cls] if class_names is not None and cls < len(class_names) else f"Class {cls}"
+    
+                fig_pr.add_trace(go.Scatter(
+                    x=recall, y=precision,
+                    mode="lines",
+                    name=f"{label} (AP = {ap:.3f})",
+                    line=dict(color=colors[i % len(colors)], width=2),
+                ))
+    
+            mean_ap = np.mean(ap_scores)
+            st.caption(f"Mean Average Precision (mAP): **{mean_ap:.4f}**")
+    
+        fig_pr.update_layout(
+            xaxis=dict(title="Recall", range=[0, 1]),
+            yaxis=dict(title="Precision", range=[0, 1.05]),
+            height=380,
+            margin=dict(l=20, r=20, t=20, b=60),
             template="plotly_white",
-            legend=dict(x=0.55, y=0.1),
+            legend=dict(x=0.01, y=0.01, xanchor="left", yanchor="bottom"),
         )
-        if result.roc_auc:
-            st.plotly_chart(fig_roc, width="stretch")
-            st.caption(f"Weighted ROC-AUC: **{result.roc_auc:.4f}**")
+        st.plotly_chart(fig_pr, width="stretch")
+    
     else:
-        st.info("ROC curve not available for this model/dataset combination.")
-
-st.subheader("Precision-Recall Curve")
- 
-if result.y_test_proba is not None:
-    from sklearn.metrics import precision_recall_curve, average_precision_score
-    from sklearn.preprocessing import label_binarize
-
-    colors = px.colors.qualitative.Set2
-    n_classes = len(np.unique(y_test))
- 
-    fig_pr = go.Figure()
- 
-    if n_classes == 2:
-        precision, recall, _ = precision_recall_curve(y_test, result.y_test_proba[:, 1])
-        ap = average_precision_score(y_test, result.y_test_proba[:, 1])
-        baseline = y_test.sum() / len(y_test)   # positive class ratio
- 
-        # Baseline (random classifier)
-        fig_pr.add_trace(go.Scatter(
-            x=[0, 1], y=[baseline, baseline],
-            mode="lines",
-            line=dict(dash="dash", color="gray", width=1),
-            name=f"Random (AP = {baseline:.2f})",
-        ))
-        fig_pr.add_trace(go.Scatter(
-            x=recall, y=precision,
-            mode="lines",
-            name=f"PR curve (AP = {ap:.3f})",
-            line=dict(color=colors[0], width=2),
-            fill="tozeroy",
-            fillcolor="rgba(102,194,165,0.15)",
-        ))
-        st.caption(f"Average Precision: **{ap:.4f}**")
- 
-    else:
-        # One-vs-Rest per class
-        classes = np.unique(y_train)
-        y_bin = label_binarize(y_test, classes=classes)
-        ap_scores = []
- 
-        for i, cls in enumerate(classes):
-            precision, recall, _ = precision_recall_curve(y_bin[:, i], result.y_test_proba[:, i])
-            ap = average_precision_score(y_bin[:, i], result.y_test_proba[:, i])
-            ap_scores.append(ap)
-            label = class_names[cls] if cls < len(class_names) else f"Class {cls}"
- 
-            fig_pr.add_trace(go.Scatter(
-                x=recall, y=precision,
-                mode="lines",
-                name=f"{label} (AP = {ap:.3f})",
-                line=dict(color=colors[i % len(colors)], width=2),
-            ))
- 
-        mean_ap = np.mean(ap_scores)
-        st.caption(f"Mean Average Precision (mAP): **{mean_ap:.4f}**")
- 
-    fig_pr.update_layout(
-        xaxis=dict(title="Recall", range=[0, 1]),
-        yaxis=dict(title="Precision", range=[0, 1.05]),
-        height=380,
-        margin=dict(l=20, r=20, t=20, b=60),
-        template="plotly_white",
-        legend=dict(x=0.01, y=0.01, xanchor="left", yanchor="bottom"),
-    )
-    st.plotly_chart(fig_pr, width="stretch")
- 
-else:
-    st.info("Precision-Recall curve requires `predict_proba` — not available for this model.")
+        st.info("Precision-Recall curve requires `predict_proba` — not available for this model.")
 
 st.divider()
 
@@ -402,7 +414,7 @@ with tab_fi:
             colors = px.colors.qualitative.Set2
             fig_coef = go.Figure()
             for i, row in enumerate(coef):
-                label = class_names[i] if i < len(class_names) else f"Class {i}"
+                label = class_names[i] if class_names is not None and i < len(class_names) else f"Class {i}"
                 fig_coef.add_trace(go.Bar(
                     x=feat_labels, y=row, name=label,
                     marker_color=colors[i % len(colors)],
